@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "403463010056",
+    "project_id": "datemeup-f2155",
+    "storage_bucket": "datemeup-f2155.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:403463010056:android:464457562219ad51ef9ebd",
+        "android_client_info": {
+          "package_name": "com.date_me_up"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "403463010056-opgvijo1daq6aoglnuesegkpgup3c33l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEEmCjngdKj-KzOrHSfH-jgn9QfPoNGGo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "403463010056-opgvijo1daq6aoglnuesegkpgup3c33l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
