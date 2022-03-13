@@ -1,18 +1,22 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../validator.dart';
 
 class LoginPage extends StatefulWidget {
-  LoginPage({Key? key, this.snackMsg}) : super(key: key);
+  const LoginPage({Key? key, this.snackMsg}) : super(key: key);
 
-  String? snackMsg;
+  final String? snackMsg;
 
   @override
   _LoginPageState createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final _formKey = GlobalKey<FormState>();
+
   String _email = "";
   String _password = "";
 
@@ -28,6 +32,18 @@ class _LoginPageState extends State<LoginPage> {
     Icons.visibility_off,
     color: Color(0xff4c5166),
   );
+
+  _showSnackBar({String? msg, bool redBg = false}) async {
+    msg ??= widget.snackMsg;
+    var snackBar = SnackBar(
+      content: Text(msg!),
+      elevation: 10,
+      backgroundColor: (msg.substring(0, 7) == "Network") || redBg ?
+      Colors.red.withOpacity(0.85) : Colors.lightBlue.withOpacity(0.85),
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+  }
 
   _showAlert(title, content) async {
     showDialog(
@@ -62,33 +78,36 @@ class _LoginPageState extends State<LoginPage> {
     try {
       await FirebaseAuth.instance.signOut();
     } catch (e) {
-      print("Error $e");
+      if (kDebugMode) print("Error $e");
     }
 
     try {
       UserCredential userCredential = await FirebaseAuth
           .instance
           .signInWithEmailAndPassword(email: _email, password: _password);
-      print("User: $userCredential");
+      if (kDebugMode) print("User: $userCredential");
 
       _user = userCredential.user;
       await _user?.reload();
 
     } on FirebaseAuthException catch (e) {
-      print("Error $e");
+      if (kDebugMode) print("Error $e");
       if (e.code == 'user-not-found') {
-        print('No user found for that email.');
+        if (kDebugMode) print('No user found for that email.');
       } else if (e.code == 'wrong-password') {
-        print('Wrong password provided for that user.');
+        if (kDebugMode) print('Wrong password provided for that user.');
       }
+      _showSnackBar(msg: "Email or Password is wrong!", redBg: true);
     } catch (e) {
-      print("Error $e");
+      if (kDebugMode) print("Error $e");
     } finally {
       // Check if user's email is verified
       if (_user != null && !_user!.emailVerified) {
         if (!_emailVerification) {
           await _user!.sendEmailVerification();
           _emailVerification = true;
+        } else {
+          _showSnackBar(msg: "Email verification needed!", redBg: true);
         }
         // await FirebaseAuth.instance.signOut();
       }
@@ -119,6 +138,13 @@ class _LoginPageState extends State<LoginPage> {
       // that even if the user creation fails, app.delete() runs, if is not,
       // next time Firebase.initializeApp() will fail as the previous one was
       // not deleted.
+      if (kDebugMode) print("Error $e");
+      if (e.code == 'invalid-email') {
+        _showSnackBar(msg: "Email is not valid!", redBg: true);
+      } else if (e.code == "email-already-in-use") {
+        _showSnackBar(msg: "Email is already in use!", redBg: true);
+      }
+
       await app.delete();
     }
   }
@@ -126,69 +152,72 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            height: double.infinity,
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xffcd0505),
-                  Color(0xffa30505),
-                  Color(0xff9c0202),
-                  Color(0xff720202),
-                  Color(0xff440101),
-                  Color(0xff2b0000),
-                  Color(0xff000000),
-                ],
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(right: 20, left: 20),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    const SizedBox(height: 40),
-                    Container(
-                      width: 250,
-                      // decoration: const BoxDecoration(
-                      //   shape: BoxShape.circle,
-                      // ),
-                      // clipBehavior: Clip.hardEdge,
-                      child: Tooltip(
-                        message: "https://www.designevo.com/",
-                        preferBelow: true,
-                        waitDuration: const Duration(milliseconds: 2000),
-                        child: Image.asset(
-                          "assets/images/logo.png",
-                          fit: BoxFit.fill,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    buildEmail(),
-                    const SizedBox(height: 15),
-                    buildPassword(),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        buildEmailVerification(),
-                        buildForgetPassword()
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    buildLoginButton(),
-                    buildSignupButton(),
+      body: Form(
+        key: _formKey,
+        child: Stack(
+          children: [
+            Container(
+              height: double.infinity,
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xffcd0505),
+                    Color(0xffa30505),
+                    Color(0xff9c0202),
+                    Color(0xff720202),
+                    Color(0xff440101),
+                    Color(0xff2b0000),
+                    Color(0xff000000),
                   ],
                 ),
               ),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 20, left: 20),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 40),
+                      Container(
+                        width: 250,
+                        // decoration: const BoxDecoration(
+                        //   shape: BoxShape.circle,
+                        // ),
+                        // clipBehavior: Clip.hardEdge,
+                        child: Tooltip(
+                          message: "https://www.designevo.com/",
+                          preferBelow: true,
+                          waitDuration: const Duration(milliseconds: 2000),
+                          child: Image.asset(
+                            "assets/images/logo.png",
+                            fit: BoxFit.fill,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      buildEmail(),
+                      const SizedBox(height: 15),
+                      buildPassword(),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          buildEmailVerification(),
+                          buildForgetPassword()
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      buildLoginButton(),
+                      buildSignupButton(),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -226,8 +255,10 @@ class _LoginPageState extends State<LoginPage> {
               ),
               onChanged: (value) {
                 _email = value;
+                _emailVerification = false;
               },
               autocorrect: false,
+              validator: (value) => Validator.validateEmail(email: value)
           ),
         ),
       ],
@@ -282,6 +313,7 @@ class _LoginPageState extends State<LoginPage> {
               },
               autocorrect: false,
               enableSuggestions: false,
+              validator: (value) => Validator.validatePassword(password: value)
           ),
         )
       ],
@@ -298,11 +330,15 @@ class _LoginPageState extends State<LoginPage> {
         ),
         onPressed: () async {
           try {
-            _emailVerification = false;
-            _checkUser();
+            if (_emailVerification) {
+              _emailVerification = false;
+              _checkUser();
 
+              _showSnackBar(msg: "Email verification sent!");
+            }
+            setState(() {});
           } catch (e) {
-            print(e);
+            if (kDebugMode) print(e);
           }
         },
       ) : Container(),
@@ -320,6 +356,9 @@ class _LoginPageState extends State<LoginPage> {
         onPressed: (){
           if (_email.isNotEmpty) {
             FirebaseAuth.instance.sendPasswordResetEmail(email: _email);
+            _showSnackBar(msg: "Email to reset password is sent!");
+          } else {
+            _showSnackBar(msg: "Provide an email!", redBg: true);
           }
         },
       ),
@@ -333,7 +372,11 @@ class _LoginPageState extends State<LoginPage> {
         width: double.infinity,
         child:  ElevatedButton(
           onPressed: (){
-            _checkUser();
+            if (widget.snackMsg != null) {
+              _showSnackBar();
+            } else if (_formKey.currentState!.validate()) {
+              _checkUser();
+            }
           },
           style: ButtonStyle(
             backgroundColor: MaterialStateProperty.all(const Color(0xffffffff)),
@@ -359,7 +402,11 @@ class _LoginPageState extends State<LoginPage> {
         width: double.infinity,
         child:  ElevatedButton(
           onPressed: (){
+            if (widget.snackMsg != null) {
+              _showSnackBar();
+            } else if (_formKey.currentState!.validate()) {
               _createUser();
+            }
           },
           style: ButtonStyle(
             backgroundColor: MaterialStateProperty.all(const Color(0xfffcfafa)),
