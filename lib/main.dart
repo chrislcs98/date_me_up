@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-// import 'package:date_me_up/screens/main_screen.dart';
 import 'package:date_me_up/screens/login_page.dart';
+// import 'package:date_me_up/screens/main_screen.dart';
+import 'package:date_me_up/screens/profile_screen.dart';
 
 // Firebase and Firestore
 import 'package:firebase_core/firebase_core.dart';
@@ -67,20 +68,26 @@ class _MyHomePageState extends State<MyHomePage> {
                 User? user = FirebaseAuth.instance.currentUser;
 
                 if (user != null && user.emailVerified) {
-                  bool exists = false;
-                  FirebaseFirestore.instance.doc(user.uid).get()
-                    .then((docSnapshot) => {
-                      if (docSnapshot.exists) {
-                        exists = true
-                      } else {
-                        exists = false
-                      }
-                    });
+                  bool exists = true;
+                  try {
+                    FirebaseFirestore.instance.doc(user.uid).get();
+                  } catch (e) {
+                    print("Error $e");
+                    exists = false;
+                  }
+                  // FirebaseFirestore.instance.doc(user.uid).get()
+                  //   .then((docSnapshot) => {
+                  //     if (docSnapshot.exists) {
+                  //       exists = true
+                  //     } else {
+                  //       exists = false
+                  //     }
+                  //   });
 
                   if (exists) {
                     // return MainScreen();
                   }
-                  // return ProfileScreen();
+                  return ProfileScreen();
 
                 } else {
                   return LoginPage();

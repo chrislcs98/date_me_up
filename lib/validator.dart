@@ -31,4 +31,52 @@ class Validator {
 
     return null;
   }
+
+  static String? validateText({required String? text, required String name}) {
+    // if (email == null) {
+    //   return null;
+    // }
+
+    if (text == null || text.isEmpty) {
+      return '     $name can\'t be empty';
+    } else if (text.contains(RegExp(r"[!#$%&'*+/=?^_`{|}~]"))) {
+      return '     Enter a valid $name';
+    }
+
+    return null;
+  }
+
+  static String? validateAge({required String? age, String? minAge}) {
+    if (age == null) {
+      return null;
+    }
+
+    RegExp ageRegExp = RegExp(r"^[1-9][0-9]{1,2}");
+    if (ageRegExp.hasMatch(age)) {
+      if (int.parse(age) < 18) return '> 18';
+
+      if ((minAge != null) && (int.parse(age) < int.parse(minAge))) return '>= Min';
+    } else {
+      return 'Number';
+    }
+
+    return null;
+  }
+
+  static String? validateDate({required String? age, String? minAge}) {
+    if (age == null) {
+      return null;
+    }
+
+    RegExp ageRegExp = RegExp(r"^[1-9][0-9]{1,2}");
+    if (ageRegExp.hasMatch(age)) {
+      if (int.parse(age) < 18) return '> 18';
+
+      if ((minAge != null) && (int.parse(age) < int.parse(minAge))) return '>= Min';
+    } else {
+      return 'Number';
+    }
+
+    return null;
+  }
 }
