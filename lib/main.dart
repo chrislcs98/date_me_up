@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import 'package:date_me_up/screens/login_page.dart';
-// import 'package:date_me_up/screens/main_screen.dart';
+import 'package:date_me_up/screens/main_screen.dart';
 import 'package:date_me_up/screens/profile_screen.dart';
 
 // Firebase and Firestore
@@ -86,7 +87,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   //   });
 
                   if (exists) {
-                    // return MainScreen();
+                    return MainScreen(user: user);
                   }
                   return ProfileScreen(user: user);
 

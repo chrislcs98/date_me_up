@@ -10,7 +10,6 @@ import 'package:date_me_up/main.dart';
 import 'package:date_me_up/constants.dart';
 
 // Firebase and Firestore
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -62,7 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: kBackgroundColor,
       appBar: AppBar(
         elevation: 20,
-        backgroundColor: kPrimaryColor,
+        backgroundColor: kSecondaryColor,
         // leading: IconButton(
         //   icon: const Icon(CupertinoIcons.profile_circled),
         //   color: Colors.grey,
@@ -93,23 +92,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             tooltip: "Submit",
             onPressed: ()  {
               try {
-                if (_formKey.currentState!.validate() || _birthDate.isNotEmpty) {
-                  FirebaseFirestore.instance.collection("users").doc(widget.user.uid).set({
-                    "name": _name,
-                    "location": _country,
-                    "birthDate": Timestamp.fromDate(DateFormat("dd/MM/yyyy").parse(_birthDate)),
-                    "interests": List<String>.from(_interests),
-                    "agePrefs": [_minAge?? "", _maxAge?? ""],
-                    "locationPrefs": _radioValue == SingingCharacter.country ? _country : ""
-                  });
+                if (_formKey.currentState!.validate()) {
+                  if (_birthDate.isNotEmpty) {
+                    FirebaseFirestore.instance.collection("users").doc(
+                        widget.user.uid).set({
+                      "name": _name,
+                      "location": _country,
+                      "birthDate": Timestamp.fromDate(
+                          DateFormat("dd/MM/yyyy").parse(_birthDate)),
+                      "interests": List<String>.from(_interests),
+                      "agePrefs": [_minAge ?? "", _maxAge ?? ""],
+                      "locationPrefs": _radioValue == SingingCharacter.country
+                          ? _country
+                          : ""
+                    });
 
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const MyHomePage()),
-                  );
-                } else {
-                  _dateReqMsg = true;
-                  setState(() {});
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const MyHomePage()),
+                    );
+                  } else {
+                    _dateReqMsg = true;
+                    setState(() {});
+                  }
                 }
               } catch (e) {
                 if (kDebugMode) print("Error $e");
@@ -429,7 +435,7 @@ Color getDateColor() {
             controller: _msgController,
             onFieldSubmitted: (value) {
               if (_newInterest.isNotEmpty) {
-                _interests.add(_newInterest);
+                _interests.add(_newInterest.trim());
                 // _msgController.clear();
                 _newInterest = "";
                 setState(() {});
@@ -448,7 +454,7 @@ Color getDateColor() {
                 splashColor: kTextColor,
                 onPressed: () {
                   if (_newInterest.isNotEmpty) {
-                    _interests.add(_newInterest);
+                    _interests.add(_newInterest.trim());
                     // _msgController.clear();
                     _newInterest = "";
                     setState(() {});
@@ -490,19 +496,19 @@ Color getDateColor() {
                     )]
                 ),
                 child: TextFormField(
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.black),
-                    decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(left: 15),
-                        hintText: 'Min',
-                        hintStyle: TextStyle(color: Colors.black38)
-                    ),
-                    onChanged: (value) {
-                      _minAge = value;
-                    },
-                    autocorrect: false,
-                    validator: (value) => Validator.validateAge(age: value)
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: Colors.black),
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.only(left: 15),
+                    hintText: 'Min',
+                    hintStyle: TextStyle(color: Colors.black38)
+                  ),
+                  onChanged: (value) {
+                    _minAge = value;
+                  },
+                  autocorrect: false,
+                  validator: (value) => Validator.validateAge(age: value)
                 ),
               ),
               Container(

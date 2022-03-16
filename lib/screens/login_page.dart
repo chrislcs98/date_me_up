@@ -164,13 +164,13 @@ class _LoginPageState extends State<LoginPage> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Color(0xff0576cd),
-                    Color(0xff0551a3),
-                    Color(0xff02549c),
-                    Color(0xff023472),
-                    Color(0xff012144),
-                    Color(0xff00172b),
-                    Color(0xff000000),
+                    Color(0xfffa623b),
+                    Color(0xfffc5930),
+                    Color(0xfff54719),
+                    Color(0xffd03b14),
+                    Color(0xff932a0f),
+                    Color(0xff571909),
+                    Color(0xff110502),
                   ],
                 ),
               ),
@@ -180,18 +180,14 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     children: [
                       const SizedBox(height: 20),
-                      Container(
+                      SizedBox(
                         width: 220,
-                        // decoration: const BoxDecoration(
-                        //   shape: BoxShape.circle,
-                        // ),
-                        // clipBehavior: Clip.hardEdge,
                         child: Tooltip(
                           message: "https://www.designevo.com/",
                           preferBelow: true,
                           waitDuration: const Duration(milliseconds: 2000),
                           child: Image.asset(
-                            "assets/images/logo.png",
+                            "assets/images/square_logo.png",
                             fit: BoxFit.fill,
                           ),
                         ),
