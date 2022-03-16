@@ -38,16 +38,16 @@ class Validator {
     // }
 
     if (text == null || text.isEmpty) {
-      return '     $name can\'t be empty';
+      return '$name can\'t be empty';
     } else if (text.contains(RegExp(r"[!#$%&'*+/=?^_`{|}~]"))) {
-      return '     Enter a valid $name';
+      return 'Enter a valid $name without symbols';
     }
 
     return null;
   }
 
-  static String? validateAge({required String? age, String? minAge}) {
-    if (age == null) {
+  static String? validateAge({required String? age, String? minAge = ""}) {
+    if (age == null || age.isEmpty) {
       return null;
     }
 
@@ -55,24 +55,7 @@ class Validator {
     if (ageRegExp.hasMatch(age)) {
       if (int.parse(age) < 18) return '> 18';
 
-      if ((minAge != null) && (int.parse(age) < int.parse(minAge))) return '>= Min';
-    } else {
-      return 'Number';
-    }
-
-    return null;
-  }
-
-  static String? validateDate({required String? age, String? minAge}) {
-    if (age == null) {
-      return null;
-    }
-
-    RegExp ageRegExp = RegExp(r"^[1-9][0-9]{1,2}");
-    if (ageRegExp.hasMatch(age)) {
-      if (int.parse(age) < 18) return '> 18';
-
-      if ((minAge != null) && (int.parse(age) < int.parse(minAge))) return '>= Min';
+      if ((minAge != null && minAge.isNotEmpty) && (int.parse(age) < int.parse(minAge))) return '>= Min';
     } else {
       return 'Number';
     }

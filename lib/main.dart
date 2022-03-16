@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:date_me_up/screens/login_page.dart';
 // import 'package:date_me_up/screens/main_screen.dart';
@@ -53,8 +54,8 @@ class _MyHomePageState extends State<MyHomePage> {
       builder: (context, snapshot) {
         // Check for errors
         if (snapshot.hasError) {
-          print(snapshot.error);
-          return LoginPage(snackMsg: "Network Connection Failed");
+          if (kDebugMode) print(snapshot.error);
+          return const LoginPage(snackMsg: "Network Connection Failed");
         }
 
         // Once complete, show your application
@@ -70,9 +71,9 @@ class _MyHomePageState extends State<MyHomePage> {
                 if (user != null && user.emailVerified) {
                   bool exists = true;
                   try {
-                    FirebaseFirestore.instance.doc(user.uid).get();
+                    FirebaseFirestore.instance.collection("users").doc(user.uid).get();
                   } catch (e) {
-                    print("Error $e");
+                    if (kDebugMode) print("Error $e");
                     exists = false;
                   }
                   // FirebaseFirestore.instance.doc(user.uid).get()
@@ -87,21 +88,21 @@ class _MyHomePageState extends State<MyHomePage> {
                   if (exists) {
                     // return MainScreen();
                   }
-                  return ProfileScreen();
+                  return ProfileScreen(user: user);
 
                 } else {
-                  return LoginPage();
+                  return const LoginPage();
                 }
               }
 
               // Checking Authentication ...
-              return LoginPage(snackMsg: "Checking Authentication ... (Wait)");
+              return const LoginPage(snackMsg: "Checking Authentication ... (Wait)");
             },
           );
         }
 
         // Otherwise, show message whilst waiting for initialization to complete
-        return LoginPage(snackMsg: "Connecting to the app ... (Wait)");
+        return const LoginPage(snackMsg: "Connecting to the app ... (Wait)");
       },
     );
   }

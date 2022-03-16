@@ -164,12 +164,12 @@ class _LoginPageState extends State<LoginPage> {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Color(0xffcd0505),
-                    Color(0xffa30505),
-                    Color(0xff9c0202),
-                    Color(0xff720202),
-                    Color(0xff440101),
-                    Color(0xff2b0000),
+                    Color(0xff0576cd),
+                    Color(0xff0551a3),
+                    Color(0xff02549c),
+                    Color(0xff023472),
+                    Color(0xff012144),
+                    Color(0xff00172b),
                     Color(0xff000000),
                   ],
                 ),
@@ -179,9 +179,9 @@ class _LoginPageState extends State<LoginPage> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 20),
                       Container(
-                        width: 250,
+                        width: 220,
                         // decoration: const BoxDecoration(
                         //   shape: BoxShape.circle,
                         // ),
@@ -196,7 +196,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      // const SizedBox(height: 10),
                       buildEmail(),
                       const SizedBox(height: 15),
                       buildPassword(),
