@@ -12,7 +12,15 @@ import 'package:date_me_up/constants.dart';
 // Firebase and Firestore
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
+
+enum SingingCharacter { country, everywhere }
+final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+
+Future<String?> _getToken() {
+  return _firebaseMessaging.getToken();
+}
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key, required this.user}) : super(key: key);
@@ -21,8 +29,6 @@ class ProfileScreen extends StatefulWidget {
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
-
-enum SingingCharacter { country, everywhere }
 
 class _ProfileScreenState extends State<ProfileScreen> {
   // final User? _user = FirebaseAuth.instance.currentUser;
@@ -57,241 +63,244 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // It will provide us total height and width of our screen
     Size size = MediaQuery.of(context).size;
 
-    return Scaffold(
-      backgroundColor: kBackgroundColor,
-      appBar: AppBar(
-        elevation: 20,
-        backgroundColor: kSecondaryColor,
-        // leading: IconButton(
-        //   icon: const Icon(CupertinoIcons.profile_circled),
-        //   color: Colors.grey,
-        //   onPressed: () {
-        //     Navigator.of(context).pop(widget.filters);
-        //   }
-        // ),
-        leading: IconButton(
-          icon: const Icon(Icons.logout),
-          color: Colors.grey,
-          tooltip: "Logout",
-          onPressed: () {
-            try {
-              FirebaseAuth.instance.signOut();
-            } catch (e) {
-              if (kDebugMode) print("Error $e");
-            }
-          }
-        ),
-        title: const Text(
-            "Complete Profile",
-            style: TextStyle(color: kTextColor)
-        ),
-        actions: <Widget>[
-          IconButton(
-            icon: const Icon(CupertinoIcons.check_mark_circled_solid),
-            color: Colors.green,
-            tooltip: "Submit",
-            onPressed: ()  {
+      return Scaffold(
+        backgroundColor: kBackgroundColor,
+        appBar: AppBar(
+          elevation: 20,
+          backgroundColor: kSecondaryColor,
+          // leading: IconButton(
+          //   icon: const Icon(CupertinoIcons.profile_circled),
+          //   color: Colors.grey,
+          //   onPressed: () {
+          //     Navigator.of(context).pop(widget.filters);
+          //   }
+          // ),
+          leading: IconButton(
+            icon: const Icon(Icons.logout),
+            color: Colors.grey,
+            tooltip: "Logout",
+            onPressed: () {
               try {
-                if (_formKey.currentState!.validate()) {
-                  if (_birthDate.isNotEmpty) {
-                    FirebaseFirestore.instance.collection("users").doc(
-                        widget.user.uid).set({
-                      "name": _name,
-                      "location": _country,
-                      "birthDate": Timestamp.fromDate(
-                          DateFormat("dd/MM/yyyy").parse(_birthDate)),
-                      "interests": List<String>.from(_interests),
-                      "agePrefs": [_minAge ?? "", _maxAge ?? ""],
-                      "locationPrefs": _radioValue == SingingCharacter.country
-                          ? _country
-                          : ""
-                    });
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const MyHomePage()),
-                    );
-                  } else {
-                    _dateReqMsg = true;
-                    setState(() {});
-                  }
-                }
+                FirebaseAuth.instance.signOut();
               } catch (e) {
                 if (kDebugMode) print("Error $e");
               }
             }
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.only(right: 20, left: 20, bottom: 20),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                _titleContainer("Personal Information *"),
-                Padding(
-                  padding: const EdgeInsets.only(right: 10, left: 10),
-                  child: Column(
+          title: const Text(
+              "Complete Profile",
+              style: TextStyle(color: kTextColor)
+          ),
+          actions: <Widget>[
+            IconButton(
+              icon: const Icon(CupertinoIcons.check_mark_circled_solid),
+              color: Colors.green,
+              tooltip: "Submit",
+              onPressed: ()  {
+                try {
+                  String deviceToken = _getToken() as String;
+                  _country = _country.trim();
+                  if (_formKey.currentState!.validate()) {
+                    if (_birthDate.isNotEmpty) {
+                      FirebaseFirestore.instance.collection("users").doc(
+                          widget.user.uid).set({
+                        "name": _name.trim(),
+                        "location": _country,
+                        "birthDate": Timestamp.fromDate(
+                            DateFormat("dd/MM/yyyy").parse(_birthDate)),
+                        "interests": List<String>.from(_interests),
+                        "agePrefs": [_minAge ?? "", _maxAge ?? ""],
+                        "locationPrefs": _radioValue == SingingCharacter.country
+                            ? _country : "",
+                        "deviceToken": deviceToken
+                      });
+
+                      checkIfDocExists(widget.user.uid);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const MyHomePage()),
+                      );
+                    } else {
+                      _dateReqMsg = true;
+                      setState(() {});
+                    }
+                  }
+                } catch (e) {
+                  if (kDebugMode) print("Error $e");
+                }
+              }
+            ),
+          ],
+        ),
+        body: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.only(right: 20, left: 20, bottom: 20),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  _titleContainer("Personal Information *"),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10, left: 10),
+                    child: Column(
+                      children: <Widget>[
+                        buildTextBox("Name", TextInputType.name),
+                        _titleContainer("Location", size: 16),
+                        const SizedBox(height: 10),
+                        // CSCPicker(
+                        //   currentCountry: _countryValue.isEmpty? "Country" : _countryValue,
+                        //   // currentCity: _cityValue.isEmpty? "City" : _cityValue,
+                        //   showStates: false,
+                        //   // showCities: true,
+                        //   onCountryChanged: (value) {
+                        //     setState(() {
+                        //       _countryValue = value;
+                        //     });
+                        //   },
+                        //   onStateChanged:(value) {},
+                        //   onCityChanged:(value) {},
+                        //   flagState: CountryFlag.SHOW_IN_DROP_DOWN_ONLY,
+                        //   dropdownDecoration: BoxDecoration(
+                        //     color: const Color(0xffebefff),
+                        //     borderRadius: BorderRadius.circular(10),
+                        //     boxShadow: const [BoxShadow(
+                        //       color: Colors.black26,
+                        //       offset: Offset(0, 2),
+                        //     )]
+                        //   ),
+                        // ),
+                        buildTextBox("Country", TextInputType.text),
+                        buildDateBox("dd/mm/yyyy", width: 210),
+                      ]
+                    )
+                  ),
+                  const Divider(color: Colors.blueGrey, height: 20.0),
+                  Row(
                     children: <Widget>[
-                      buildTextBox("Name", TextInputType.name),
-                      _titleContainer("Location", size: 16),
-                      const SizedBox(height: 10),
-                      // CSCPicker(
-                      //   currentCountry: _countryValue.isEmpty? "Country" : _countryValue,
-                      //   // currentCity: _cityValue.isEmpty? "City" : _cityValue,
-                      //   showStates: false,
-                      //   // showCities: true,
-                      //   onCountryChanged: (value) {
-                      //     setState(() {
-                      //       _countryValue = value;
-                      //     });
-                      //   },
-                      //   onStateChanged:(value) {},
-                      //   onCityChanged:(value) {},
-                      //   flagState: CountryFlag.SHOW_IN_DROP_DOWN_ONLY,
-                      //   dropdownDecoration: BoxDecoration(
-                      //     color: const Color(0xffebefff),
-                      //     borderRadius: BorderRadius.circular(10),
-                      //     boxShadow: const [BoxShadow(
-                      //       color: Colors.black26,
-                      //       offset: Offset(0, 2),
-                      //     )]
-                      //   ),
-                      // ),
-                      buildTextBox("Country", TextInputType.text),
-                      buildDateBox("dd/mm/yyyy", width: 210),
-                    ]
-                  )
-                ),
-                const Divider(color: Colors.blueGrey, height: 20.0),
-                Row(
-                  children: <Widget>[
-                    _titleContainer('Interests'),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.clear),
-                      color: kTextColor,
-                      tooltip: 'Clear Interests',
-                      splashColor: kTextColor,
-                      onPressed: () {
-                        _interests.clear();
-                        setState(() {});
-                      },
-                    ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 10, left: 10),
-                  child: Column(
-                    children: [
-                      buildInterestsBox("Interest", TextInputType.text, value: _newInterest),
-                      Container(
-                        alignment: Alignment.centerLeft,
-                        child: Wrap(
-                          spacing: 10.0,
-                          runSpacing: 3.0,
-                          children: getInterestsWidgets(),
-                        )
-                      )
+                      _titleContainer('Interests'),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.clear),
+                        color: kTextColor,
+                        tooltip: 'Clear Interests',
+                        splashColor: kTextColor,
+                        onPressed: () {
+                          _interests.clear();
+                          setState(() {});
+                        },
+                      ),
                     ],
                   ),
-                ),
-                const Divider(color: Colors.blueGrey, height: 20.0),
-                Row(
-                  children: <Widget>[
-                    _titleContainer('Preferences'),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.clear),
-                      color: kTextColor,
-                      tooltip: 'Clear Preferences',
-                      splashColor: kTextColor,
-                      onPressed: () {
-                        _minAge = "";
-                        _maxAge = "";
-                        _radioValue = SingingCharacter.country;
-                        // _radioValue = _cityValue.isEmpty? SingingCharacter.country : SingingCharacter.city;
-                        setState(() {});
-                      },
-                    ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 10, left: 10),
-                  child: Column(
-                    children: [
-                      buildAge(),
-                      _titleContainer("Location", size: 16),
-                      // _cityValue.isNotEmpty? Align(
-                      //   alignment: Alignment.centerLeft,
-                      //   child: SizedBox(
-                      //     width: 230,
-                      //     child: ListTile(
-                      //       title: Text(
-                      //         _cityValue,
-                      //         style: const TextStyle(color: kTextColor),
-                      //       ),
-                      //       leading: Radio(
-                      //         value: SingingCharacter.city,
-                      //         groupValue: _radioValue,
-                      //         onChanged: (SingingCharacter? value) {
-                      //           setState(() { _radioValue = value!;});
-                      //         },
-                      //       ),
-                      //     ),
-                      //   ),
-                      // ) : Container(),
-                      Align(
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10, left: 10),
+                    child: Column(
+                      children: [
+                        buildInterestsBox("Interest", TextInputType.text, value: _newInterest),
+                        Container(
                           alignment: Alignment.centerLeft,
-                          child: SizedBox(
-                            width: 230,
-                            child: ListTile(
-                              title: Text(
-                                _country.isEmpty ? "My Country" : _country,
-                                style: const TextStyle(color: kTextColor),
-                              ),
-                              leading: Radio(
-                                value: SingingCharacter.country,
-                                groupValue: _radioValue,
-                                onChanged: (SingingCharacter? value) {
-                                  setState(() { _radioValue = value!; });
-                                },
-                              ),
-                            ),
+                          child: Wrap(
+                            spacing: 10.0,
+                            runSpacing: 3.0,
+                            children: getInterestsWidgets(),
                           )
+                        )
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Colors.blueGrey, height: 20.0),
+                  Row(
+                    children: <Widget>[
+                      _titleContainer('Preferences'),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.clear),
+                        color: kTextColor,
+                        tooltip: 'Clear Preferences',
+                        splashColor: kTextColor,
+                        onPressed: () {
+                          _minAge = "";
+                          _maxAge = "";
+                          _radioValue = SingingCharacter.country;
+                          // _radioValue = _cityValue.isEmpty? SingingCharacter.country : SingingCharacter.city;
+                          setState(() {});
+                        },
                       ),
-                      Align(
-                          alignment: Alignment.centerLeft,
-                          child: SizedBox(
-                            width: 230,
-                            child: ListTile(
-                                title: const Text(
-                                  'Everywhere',
-                                  style: TextStyle(color: kTextColor),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10, left: 10),
+                    child: Column(
+                      children: [
+                        buildAge(),
+                        _titleContainer("Location", size: 16),
+                        // _cityValue.isNotEmpty? Align(
+                        //   alignment: Alignment.centerLeft,
+                        //   child: SizedBox(
+                        //     width: 230,
+                        //     child: ListTile(
+                        //       title: Text(
+                        //         _cityValue,
+                        //         style: const TextStyle(color: kTextColor),
+                        //       ),
+                        //       leading: Radio(
+                        //         value: SingingCharacter.city,
+                        //         groupValue: _radioValue,
+                        //         onChanged: (SingingCharacter? value) {
+                        //           setState(() { _radioValue = value!;});
+                        //         },
+                        //       ),
+                        //     ),
+                        //   ),
+                        // ) : Container(),
+                        Align(
+                            alignment: Alignment.centerLeft,
+                            child: SizedBox(
+                              width: 230,
+                              child: ListTile(
+                                title: Text(
+                                  _country.isEmpty ? "My Country" : _country,
+                                  style: const TextStyle(color: kTextColor),
                                 ),
                                 leading: Radio(
-                                  value: SingingCharacter.everywhere,
+                                  value: SingingCharacter.country,
                                   groupValue: _radioValue,
                                   onChanged: (SingingCharacter? value) {
                                     setState(() { _radioValue = value!; });
                                   },
                                 ),
-                                trailing: const Icon(CupertinoIcons.globe, color: kTextColor)
-                            ),
-                          )
-                      ),
-                    ],
-                  ),
-                )
-              ],
+                              ),
+                            )
+                        ),
+                        Align(
+                            alignment: Alignment.centerLeft,
+                            child: SizedBox(
+                              width: 230,
+                              child: ListTile(
+                                  title: const Text(
+                                    'Everywhere',
+                                    style: TextStyle(color: kTextColor),
+                                  ),
+                                  leading: Radio(
+                                    value: SingingCharacter.everywhere,
+                                    groupValue: _radioValue,
+                                    onChanged: (SingingCharacter? value) {
+                                      setState(() { _radioValue = value!; });
+                                    },
+                                  ),
+                                  trailing: const Icon(CupertinoIcons.globe, color: kTextColor)
+                              ),
+                            )
+                        ),
+                      ],
+                    ),
+                  )
+                ],
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   // Future<bool> _onBackPressed() {

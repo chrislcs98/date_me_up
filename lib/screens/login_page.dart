@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:date_me_up/main.dart';
 import '../validator.dart';
 
 class LoginPage extends StatefulWidget {
@@ -88,6 +89,8 @@ class _LoginPageState extends State<LoginPage> {
       if (kDebugMode) print("User: $userCredential");
 
       _user = userCredential.user;
+
+      checkIfDocExists(_user!.uid);
       await _user?.reload();
 
     } on FirebaseAuthException catch (e) {
@@ -179,7 +182,7 @@ class _LoginPageState extends State<LoginPage> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 30),
                       SizedBox(
                         width: 220,
                         child: Tooltip(
@@ -192,7 +195,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-                      // const SizedBox(height: 10),
+                      const SizedBox(height: 20),
                       buildEmail(),
                       const SizedBox(height: 15),
                       buildPassword(),

@@ -1,8 +1,10 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'package:date_me_up/constants.dart';
+import 'package:date_me_up/user_data.dart';
 
 // Firebase and Firestore
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,19 +20,212 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  final Set<String> _interests = {};
+  int _selectedTab = 0;
   final List<Widget> _interestsWidgets = [];
+  late final UserData _userData;
+  final List<UserData> _Users = [];
+  final List<UserData> _MatchedUsers = [];
+  final List<Map<String, dynamic>> _Matches = [];
+  int _idx = 0;
+  int _midx = 0;
+  bool _endListUsers = false;
 
-  // @override
-  // void initState() {
-  //   super.initState();
-  //
-  // }
+  @override
+  void initState() {
+    super.initState();
+    getUserData(widget.user);
+  }
+
+  UserData? assignUserData(id, Map<String, dynamic>? data) {
+    if (data != null) {
+      return UserData(
+        id: id,
+        name: data['name'],
+        location: data['location'],
+        birthDate: data['birthDate'].toDate(),
+        age: calculateAge(data['birthDate'].toDate()),
+        agePrefs: data['agePrefs'],
+        locationPrefs: data['locationPrefs'],
+        interests: data['interests']
+      );
+    }
+    return null;
+  }
+
+  Future<void> getUserData(User user) async {
+    // UserData? userData;
+
+    await FirebaseFirestore.instance.collection('users').doc(widget.user.uid).get()
+      .then((doc) {
+      _userData = assignUserData(doc.id, doc.data())!;
+    });
+
+    if (kDebugMode) print("Me: " + _userData.name);
+    getMatches(_userData);
+    // return userData;
+  }
+
+  Future<void> getMatches(UserData userData) async {
+    _Matches.clear();
+    Map<String, dynamic> data;
+
+    await FirebaseFirestore.instance.collection('matches')
+      .where('senderUId', isEqualTo: userData.id)
+      .get()
+      .then((querySnapshot) {
+        querySnapshot.docs.forEach((doc) {
+          data = doc.data();
+          data['id'] = doc.id;
+
+          _Matches.add(data);
+        });
+    });
+
+    getPeople(userData: userData);
+  }
+
+  Future<void> getPeople({UserData? userData}) async {
+    _Users.clear();
+    late UserData? tmpUser;
+    bool commonInterest = false;
+    List<String> receiverIdMatches = [ for (var el in _Matches) el['receiverUId'] ];
+
+    await FirebaseFirestore.instance.collection('users')
+      // .orderBy('name')
+      // .limit(10)
+      // .startAfterDocument(documentSnapshot)
+      .where('__name__', isNotEqualTo: _userData.id)
+      .get()
+      .then((querySnapshot) => {
+        querySnapshot.docs.forEach((doc) {
+          // print(doc.data()["name"]);
+          // print(doc.data());
+
+          tmpUser = assignUserData(doc.id, doc.data());
+          if (tmpUser != null) {
+            if (userData == null) {
+              _Users.add(tmpUser!);
+            } else {
+              if (!receiverIdMatches.contains(tmpUser?.id)) {
+                bool condLoc = userData.locationPrefs!.isEmpty ? true
+                    : (userData.locationPrefs?.toLowerCase().compareTo(
+                    tmpUser!.location.toLowerCase()) == 0);
+                if (condLoc) {
+                  // tmpUser!.age = calculateAge(tmpUser!.birthDate);
+                  bool condAge1 = userData.agePrefs![0].isEmpty ? true : (tmpUser!.age! >= int.parse(userData.agePrefs![0]));
+                  bool condAge2 = userData.agePrefs![1].isEmpty ? true : (tmpUser!.age! <= int.parse(userData.agePrefs![1]));
+
+                  if (condAge1 && condAge2) {
+                    commonInterest = false;
+                    if ((userData.interests!.isNotEmpty && tmpUser!.interests!.isNotEmpty) &&
+                        ((userData.interests != null) && (tmpUser!.interests != null))) {
+
+                      try {
+                        tmpUser?.interests?.forEach((el) {
+                          if (userData.interests!.contains(el)) {
+                            commonInterest = true;
+                            throw '';
+                          }
+                        });
+                      } catch (e) {}
+                    } else {
+                      commonInterest = true;
+                    }
+
+                    if (commonInterest) {
+                      _Users.add(tmpUser!);
+                      if (_Users.length == 1) setState(() {});
+                    }
+                  }
+                }
+              } else {
+                _MatchedUsers.add(tmpUser!);
+                if (_MatchedUsers.length == 1) setState(() {});
+              }
+            }
+          }
+        })
+    });
+    // setState(() {});
+  }
+
+  int calculateAge(DateTime birthDate) {
+    DateTime currentDate = DateTime.now();
+    int age = currentDate.year - birthDate.year;
+    int month1 = currentDate.month;
+    int month2 = birthDate.month;
+    if (month2 > month1) {
+      age--;
+    } else if (month1 == month2) {
+      int day1 = currentDate.day;
+      int day2 = birthDate.day;
+      if (day2 > day1) {
+        age--;
+      }
+    }
+    return age;
+  }
+
+  Future<void> addOrRemoveMatch() async {
+    if (_selectedTab == 0) {
+      var data = {
+        "senderUId": _userData.id,
+        "receiverUId": _Users[_idx].id,
+        "twoWays": true    // True because in this case we assume there only matches with mock users which are accepted immediately
+      };
+
+      await FirebaseFirestore.instance.collection('matches')
+        .add(data)
+        .then((value) {
+          if (kDebugMode) print("User Added!");
+          _MatchedUsers.add(_Users[_idx]);
+          _midx = _MatchedUsers.length - 1;
+          _Users.removeAt(_idx);
+          if (_Users.length == _idx) {
+            _idx = 0;
+            _endListUsers = true;
+          }
+
+          _Matches.add(data);
+        })
+        .catchError((error) { if (kDebugMode) print("Failed to add user: $error"); });
+    } else {
+      int idx = _Matches.indexWhere((el)  {
+        if ((el['receiverUId'] == _MatchedUsers[_midx].id) && (el['senderUId'] == _userData.id)) return true;
+        return false;
+      });
+
+      await FirebaseFirestore.instance.collection('matches').doc(_Matches[idx]['id'])
+        .delete()
+        .then((v) {
+          if (kDebugMode) print("Delete Match!");
+          _Users.add(_MatchedUsers[_midx]);
+          _MatchedUsers.removeAt(_midx);
+          if (_MatchedUsers.length == _midx) _midx = 0;
+        })
+        .catchError((error) { if (kDebugMode) print("Failed to delete match: $error"); });
+    }
+
+    setState(() {});
+  }
+
+  void _onItemTapped(int index) {
+    _selectedTab = index;
+    _endListUsers = false;
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
     // It will provide us total height and width of our screen
-    Size size = MediaQuery.of(context).size;
+    // Size size = MediaQuery.of(context).size;
+
+    UserData? user;
+    if (_selectedTab == 0) {
+      user = _Users.isNotEmpty ? _Users[_idx] : null;
+    } else {
+      user = _MatchedUsers.isNotEmpty ? _MatchedUsers[_midx] : null;
+    }
 
     return Scaffold(
       backgroundColor: kBackgroundColor,
@@ -38,16 +233,16 @@ class _MainScreenState extends State<MainScreen> {
         elevation: 20,
         backgroundColor: kPrimaryColor,
         leading: IconButton(
-            icon: const Icon(Icons.logout),
-            color: Colors.grey,
-            tooltip: "Logout",
-            onPressed: () {
-              try {
-                FirebaseAuth.instance.signOut();
-              } catch (e) {
-                if (kDebugMode) print("Error $e");
-              }
+          icon: const Icon(Icons.logout),
+          color: Colors.grey,
+          tooltip: "Logout",
+          onPressed: () {
+            try {
+              FirebaseAuth.instance.signOut();
+            } catch (e) {
+              if (kDebugMode) print("Error $e");
             }
+          }
         ),
         title: Row(
           children: [
@@ -66,11 +261,25 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ]
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            iconSize: 30,
+            color: Colors.grey,
+            tooltip: "Refresh",
+            onPressed: () {
+              getMatches(_userData);
+              setState(() {});
+            }
+          )
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         type: BottomNavigationBarType.fixed,
+        currentIndex: _selectedTab,
+        onTap: _onItemTapped,
         items: [
           const BottomNavigationBarItem(
               icon: Icon(Icons.people_alt_rounded, size: 30), label: "Home"),
@@ -83,85 +292,145 @@ class _MainScreenState extends State<MainScreen> {
         width: double.maxFinite,
         child: Padding(
           padding: const EdgeInsets.all(15),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              image: DecorationImage(
-                image: AssetImage("assets/images/image.jpeg"),
-                fit: BoxFit.cover
-              )
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        "Mercedes",
-                        style: TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.bold,
-                          color: kTextColor
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      Text(
-                        "20",
-                        style: TextStyle(
-                            fontSize: 24,
-                            color: kTextColor
-                        ),
-                      ),
-                    ],
+          child: (user == null || (_endListUsers && _selectedTab == 0)) ?
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _selectedTab == 0 ? "No more users available yet..." : "No matches",
+                  style: const TextStyle(color: kTextColor, fontSize: 24)
+                ),
+                user != null ? const SizedBox(height: 50) : Container(),
+                user != null ? Tooltip(
+                  message: "Refresh from the start",
+                  preferBelow: true,
+                  child: ActionIcon(
+                    icon: Icons.refresh,
+                    color: Colors.white,
+                    onPress: () {
+                      if (kDebugMode) print("Refresh");
+                      setState(() {
+                        _endListUsers = false;
+                      });
+                    },
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Icon(
-                        Icons.location_on,
-                        color: kSecondaryColor,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        "Cyprus",
-                        style: TextStyle(
-                            fontSize: 20,
-                            color: kTextColor
-                        ),
+                ) : Container(),
+              ],
+            )
+            : Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                image: const DecorationImage(
+                  image: AssetImage("assets/images/mercedes.jpeg"),
+                  fit: BoxFit.cover
+                )
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                child: Column(
+                  mainAxisAlignment: _selectedTab == 1 ? MainAxisAlignment.start : MainAxisAlignment.end,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _selectedTab == 0 ? Container()
+                    : Center(
+                      child: Chip(
+                        backgroundColor: kSecondaryColor.withOpacity(0.8),
+                        elevation: 3,
+                        label: const Text("  It's a match!  "),
+                        labelStyle: GoogleFonts.lobster(fontSize: 26, color: kTextColor)
                       )
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    children: getInterestsWidgets()
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: const [
-                      Spacer(),
-                      ActionIcon(
-                        icon: Icons.refresh,
-                        color: Colors.white,
-                      ),
-                      Spacer(),
-                      ActionIcon(
-                        icon: CupertinoIcons.heart_fill,
-                        color: Colors.white70,
-                        borderColor: Colors.red,
-                      ),
-
-                      Spacer()
-                    ],
-                  )
-                ],
-              )
+                    ),
+                    const Spacer(),
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              user.name,
+                              style: const TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold,
+                                color: kTextColor
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Text(
+                              user.age?.toString() ?? "",
+                              style: const TextStyle(
+                                  fontSize: 24,
+                                  color: kTextColor
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Icon(
+                              Icons.location_on,
+                              color: kSecondaryColor,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              user.location,
+                              style: const TextStyle(
+                                  fontSize: 20,
+                                  color: kTextColor
+                              ),
+                            )
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 10.0,
+                          runSpacing: 3.0,
+                          children: getInterestsWidgets(user.interests)
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            (_selectedTab == 1 && _MatchedUsers.length == 1) ? Container() : const Spacer(),
+                            (_selectedTab == 1 && _MatchedUsers.length == 1) ? Container()
+                            : ActionIcon(
+                              icon: Icons.refresh,
+                              color: Colors.white,
+                              onPress: () {
+                                print("Refresh");
+                                if (_selectedTab == 0) {
+                                  _idx++;
+                                  if (_Users.length == _idx) {
+                                    _idx = 0;
+                                    _endListUsers = true;
+                                  }
+                                } else {
+                                  _midx++;
+                                  if (_MatchedUsers.length == _midx) _midx = 0;
+                                }
+                                setState(() {});
+                              },
+                            ),
+                            const Spacer(),
+                            ActionIcon(
+                              icon: CupertinoIcons.heart_fill,
+                              color: _selectedTab == 0 ? Colors.white70 : Colors.red,
+                              borderColor: Colors.red,
+                              onPress: () {
+                                addOrRemoveMatch();
+                              },
+                            ),
+                            const Spacer()
+                          ],
+                        )
+                      ],
+                    ),
+                  ],
+                )
+              ),
             ),
-          ),
         ),
       )
 
@@ -173,49 +442,41 @@ class _MainScreenState extends State<MainScreen> {
   //   return null;
   // }
 
-  List<Widget> getInterestsWidgets()
+  List<Widget> getInterestsWidgets(List<dynamic>? interests)
   {
     _interestsWidgets.clear();
-    _interests.forEach((e) {
-      _interestsWidgets.add(_interestsChip(e));
-    });
+    if (interests == null) return _interestsWidgets;
+
+    for (var el in interests) {
+      if (_userData.interests!.contains(el)) {
+        _interestsWidgets.insert(0, _interestsChip(el, bgColor: Colors.red));
+      } else {
+        _interestsWidgets.add(_interestsChip(el));
+      }
+    }
 
     return _interestsWidgets;
   }
 
-  Widget _interestsChip(String chipName) {
-    return InputChip(
+  Widget _interestsChip(String chipName, { Color bgColor = Colors.grey, double fontSize = 14, FontWeight? fontWeight = FontWeight.bold, String? fontFam }) {
+    return Chip(
+      backgroundColor: bgColor.withOpacity(0.9),
+      elevation: 3,
       label: Text(chipName),
-      labelStyle: const TextStyle(color: Colors.black, fontSize: 14.0, fontWeight: FontWeight.bold),
-      onDeleted: (){
-        setState(() {_interests.remove(chipName);});
-      },
+      labelStyle: TextStyle(color: kTextColor, fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFam),
     );
   }
 }
 
-// Widget _titleContainer(String myTitle, {double leftPadding = 0, double size = 24}) {
-//   return Align(
-//     alignment: Alignment.centerLeft,
-//     child: Padding(
-//       padding: EdgeInsets.fromLTRB(leftPadding, 15, 5, 5),
-//       child: Text(
-//         myTitle,
-//         style: TextStyle(
-//             color: kTextColor, fontSize: size, fontWeight: FontWeight.bold),
-//       ),
-//     ),
-//   );
-// }
-
 class ActionIcon extends StatelessWidget {
-  const ActionIcon({ Key? key , this.large = true, required this.icon, this.color = Colors.red, this.borderColor })
+  const ActionIcon({ Key? key , this.large = true, required this.icon, this.color = Colors.red, this.borderColor, this.onPress })
       : super(key: key);
 
   final bool large;
   final IconData icon;
   final Color color;
   final Color? borderColor;
+  final Function? onPress;
 
   @override
   Widget build(BuildContext context) {
@@ -226,7 +487,7 @@ class ActionIcon extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(30),
         border: Border.all(width: 2, color: newBorderColor),
-        boxShadow: [kDefaultShadow]
+        // boxShadow: const [kDefaultShadow]
       ),
       child: ElevatedButton(
         style: ButtonStyle(
@@ -234,13 +495,21 @@ class ActionIcon extends StatelessWidget {
           elevation: MaterialStateProperty.all(0),
           padding: MaterialStateProperty.all(EdgeInsets.zero),
           alignment: Alignment.center,
-          shape: MaterialStateProperty.all(CircleBorder())
+          shape: MaterialStateProperty.all(const CircleBorder())
         ),
         onPressed: () {
-
+          onPress!();
         },
         child: Icon(icon, color: color, size: 30),
       ),
     );
   }
+}
+
+class Message {
+  String title;
+  String body;
+  String message;
+
+  Message(this.title, this.body, this.message);
 }
