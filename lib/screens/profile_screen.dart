@@ -1,9 +1,12 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 // import 'package:flutter_icons/flutter_icons.dart';
 import 'package:intl/intl.dart';
 // import 'package:csc_picker/csc_picker.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:date_me_up/validator.dart';
 import 'package:date_me_up/main.dart';
@@ -12,6 +15,7 @@ import 'package:date_me_up/constants.dart';
 // Firebase and Firestore
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 
@@ -33,6 +37,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   // final User? _user = FirebaseAuth.instance.currentUser;
   final _formKey = GlobalKey<FormState>();
+  late String _token;
 
   final _msgController = TextEditingController();
 
@@ -45,37 +50,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _name = "";
   String _country = "";
   // String _cityValue = "";
-  String _newInterest = "";
 
+  String _newInterest = "";
   late String? _minAge = "";
   late String? _maxAge = "";
   late SingingCharacter _radioValue = SingingCharacter.country;
   // late SingingCharacter _radioValue = _cityValue.isEmpty? SingingCharacter.country : SingingCharacter.city;
 
-  // @override
-  // void initState() {
-  //   super.initState();
-  //
-  // }
+  String? _imageURL;
+  XFile? _image;
+  late Uint8List _imageBytes;
+  dynamic _pickImageError;
+  String? _retrieveDataError;
+  final ImagePicker _picker = ImagePicker();
+
+
+  @override
+  void initState() {
+    super.initState();
+
+    _getToken().then((value) => _token = value!);
+  }
 
   @override
   Widget build(BuildContext context) {
     // It will provide us total height and width of our screen
-    Size size = MediaQuery.of(context).size;
+    Size size = MediaQuery
+        .of(context)
+        .size;
 
-      return Scaffold(
-        backgroundColor: kBackgroundColor,
-        appBar: AppBar(
-          elevation: 20,
-          backgroundColor: kSecondaryColor,
-          // leading: IconButton(
-          //   icon: const Icon(CupertinoIcons.profile_circled),
-          //   color: Colors.grey,
-          //   onPressed: () {
-          //     Navigator.of(context).pop(widget.filters);
-          //   }
-          // ),
-          leading: IconButton(
+    return Scaffold(
+      backgroundColor: kBackgroundColor,
+      appBar: AppBar(
+        elevation: 20,
+        backgroundColor: kSecondaryColor,
+        // leading: IconButton(
+        //   icon: const Icon(CupertinoIcons.profile_circled),
+        //   color: Colors.grey,
+        //   onPressed: () {
+        //     Navigator.of(context).pop(widget.filters);
+        //   }
+        // ),
+        leading: IconButton(
             icon: const Icon(Icons.logout),
             color: Colors.grey,
             tooltip: "Logout",
@@ -86,22 +102,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (kDebugMode) print("Error $e");
               }
             }
-          ),
-          title: const Text(
-              "Complete Profile",
-              style: TextStyle(color: kTextColor)
-          ),
-          actions: <Widget>[
-            IconButton(
+        ),
+        title: const Text(
+            "Complete Profile",
+            style: TextStyle(color: kTextColor)
+        ),
+        actions: <Widget>[
+          IconButton(
               icon: const Icon(CupertinoIcons.check_mark_circled_solid),
               color: Colors.green,
               tooltip: "Submit",
-              onPressed: ()  {
+              onPressed: () async {
                 try {
-                  String deviceToken = _getToken() as String;
                   _country = _country.trim();
                   if (_formKey.currentState!.validate()) {
-                    if (_birthDate.isNotEmpty) {
+                    if (_birthDate.isNotEmpty && _image != null) {
+                      await _uploadFile(_image!);
+
+                      await FirebaseAuth.instance.currentUser?.updateDisplayName(_name.trim());
+
                       FirebaseFirestore.instance.collection("users").doc(
                           widget.user.uid).set({
                         "name": _name.trim(),
@@ -112,10 +131,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         "agePrefs": [_minAge ?? "", _maxAge ?? ""],
                         "locationPrefs": _radioValue == SingingCharacter.country
                             ? _country : "",
-                        "deviceToken": deviceToken
+                        "deviceToken": _token,
+                        "image": _imageURL
                       });
 
-                      checkIfDocExists(widget.user.uid);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -130,177 +149,242 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (kDebugMode) print("Error $e");
                 }
               }
+          ),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Semantics(
+            label: 'image_picker_example_from_gallery',
+            child: FloatingActionButton(
+              onPressed: () {
+                _onImageButtonPressed(ImageSource.gallery, context: context);
+              },
+              heroTag: 'image0',
+              tooltip: 'Pick Image from gallery',
+              child: const Icon(Icons.photo),
             ),
-          ],
-        ),
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.only(right: 20, left: 20, bottom: 20),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  _titleContainer("Personal Information *"),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10, left: 10),
-                    child: Column(
-                      children: <Widget>[
-                        buildTextBox("Name", TextInputType.name),
-                        _titleContainer("Location", size: 16),
-                        const SizedBox(height: 10),
-                        // CSCPicker(
-                        //   currentCountry: _countryValue.isEmpty? "Country" : _countryValue,
-                        //   // currentCity: _cityValue.isEmpty? "City" : _cityValue,
-                        //   showStates: false,
-                        //   // showCities: true,
-                        //   onCountryChanged: (value) {
-                        //     setState(() {
-                        //       _countryValue = value;
-                        //     });
-                        //   },
-                        //   onStateChanged:(value) {},
-                        //   onCityChanged:(value) {},
-                        //   flagState: CountryFlag.SHOW_IN_DROP_DOWN_ONLY,
-                        //   dropdownDecoration: BoxDecoration(
-                        //     color: const Color(0xffebefff),
-                        //     borderRadius: BorderRadius.circular(10),
-                        //     boxShadow: const [BoxShadow(
-                        //       color: Colors.black26,
-                        //       offset: Offset(0, 2),
-                        //     )]
-                        //   ),
-                        // ),
-                        buildTextBox("Country", TextInputType.text),
-                        buildDateBox("dd/mm/yyyy", width: 210),
-                      ]
-                    )
-                  ),
-                  const Divider(color: Colors.blueGrey, height: 20.0),
-                  Row(
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 16.0),
+            child: FloatingActionButton(
+              onPressed: () {
+                setState(() {});
+              },
+              tooltip: 'Refresh',
+              child: const Icon(Icons.refresh, size: 30),
+            ),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.only(right: 20, left: 20, bottom: 20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                _titleContainer("Personal Information *"),
+                Padding(
+                  padding: const EdgeInsets.only(right: 10, left: 10),
+                  child: Column(
                     children: <Widget>[
-                      _titleContainer('Interests'),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.clear),
-                        color: kTextColor,
-                        tooltip: 'Clear Interests',
-                        splashColor: kTextColor,
-                        onPressed: () {
-                          _interests.clear();
-                          setState(() {});
+                      _image == null ? const SizedBox(height: 20) : Container(),
+                      FutureBuilder<void>(
+                        future: retrieveLostData(),
+                        builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
+                          switch (snapshot.connectionState) {
+                            case ConnectionState.none:
+                            case ConnectionState.waiting:
+                              return const Text(
+                                'You have not yet picked an image.',
+                                textAlign: TextAlign.center,
+                              );
+                            case ConnectionState.done:
+                              return Container(
+                                height: _image != null ? 350 : 250,
+                                decoration: const BoxDecoration(shape: BoxShape.circle),
+                                clipBehavior: Clip.hardEdge,
+                                child: _previewImage(),
+                              );
+                            default:
+                              if (snapshot.hasError) {
+                                return Text(
+                                  'Pick image error: ${snapshot.error}}',
+                                  textAlign: TextAlign.center,
+                                );
+                              } else {
+                                return const Text(
+                                  'You have not yet picked an image.',
+                                  textAlign: TextAlign.center,
+                                );
+                              }
+                          }
                         },
                       ),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10, left: 10),
-                    child: Column(
-                      children: [
-                        buildInterestsBox("Interest", TextInputType.text, value: _newInterest),
-                        Container(
+                      buildTextBox("Name", TextInputType.name),
+                      _titleContainer("Location", size: 16),
+                      const SizedBox(height: 10),
+                      // CSCPicker(
+                      //   currentCountry: _countryValue.isEmpty? "Country" : _countryValue,
+                      //   // currentCity: _cityValue.isEmpty? "City" : _cityValue,
+                      //   showStates: false,
+                      //   // showCities: true,
+                      //   onCountryChanged: (value) {
+                      //     setState(() {
+                      //       _countryValue = value;
+                      //     });
+                      //   },
+                      //   onStateChanged:(value) {},
+                      //   onCityChanged:(value) {},
+                      //   flagState: CountryFlag.SHOW_IN_DROP_DOWN_ONLY,
+                      //   dropdownDecoration: BoxDecoration(
+                      //     color: const Color(0xffebefff),
+                      //     borderRadius: BorderRadius.circular(10),
+                      //     boxShadow: const [BoxShadow(
+                      //       color: Colors.black26,
+                      //       offset: Offset(0, 2),
+                      //     )]
+                      //   ),
+                      // ),
+                      buildTextBox("Country", TextInputType.text),
+                      buildDateBox("dd/mm/yyyy", width: 210),
+                    ]
+                  )
+                ),
+                const Divider(color: Colors.blueGrey, height: 20.0),
+                Row(
+                  children: <Widget>[
+                    _titleContainer('Interests'),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.clear),
+                      color: kTextColor,
+                      tooltip: 'Clear Interests',
+                      splashColor: kTextColor,
+                      onPressed: () {
+                        _interests.clear();
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 10, left: 10),
+                  child: Column(
+                    children: [
+                      buildInterestsBox(
+                          "Interest", TextInputType.text, value: _newInterest),
+                      Container(
                           alignment: Alignment.centerLeft,
                           child: Wrap(
                             spacing: 10.0,
                             runSpacing: 3.0,
                             children: getInterestsWidgets(),
                           )
-                        )
-                      ],
-                    ),
+                      )
+                    ],
                   ),
-                  const Divider(color: Colors.blueGrey, height: 20.0),
-                  Row(
-                    children: <Widget>[
-                      _titleContainer('Preferences'),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.clear),
-                        color: kTextColor,
-                        tooltip: 'Clear Preferences',
-                        splashColor: kTextColor,
-                        onPressed: () {
-                          _minAge = "";
-                          _maxAge = "";
-                          _radioValue = SingingCharacter.country;
-                          // _radioValue = _cityValue.isEmpty? SingingCharacter.country : SingingCharacter.city;
-                          setState(() {});
-                        },
+                ),
+                const Divider(color: Colors.blueGrey, height: 20.0),
+                Row(
+                  children: <Widget>[
+                    _titleContainer('Preferences'),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.clear),
+                      color: kTextColor,
+                      tooltip: 'Clear Preferences',
+                      splashColor: kTextColor,
+                      onPressed: () {
+                        _minAge = "";
+                        _maxAge = "";
+                        _radioValue = SingingCharacter.country;
+                        // _radioValue = _cityValue.isEmpty? SingingCharacter.country : SingingCharacter.city;
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 10, left: 10),
+                  child: Column(
+                    children: [
+                      buildAge(),
+                      _titleContainer("Location", size: 16),
+                      // _cityValue.isNotEmpty? Align(
+                      //   alignment: Alignment.centerLeft,
+                      //   child: SizedBox(
+                      //     width: 230,
+                      //     child: ListTile(
+                      //       title: Text(
+                      //         _cityValue,
+                      //         style: const TextStyle(color: kTextColor),
+                      //       ),
+                      //       leading: Radio(
+                      //         value: SingingCharacter.city,
+                      //         groupValue: _radioValue,
+                      //         onChanged: (SingingCharacter? value) {
+                      //           setState(() { _radioValue = value!;});
+                      //         },
+                      //       ),
+                      //     ),
+                      //   ),
+                      // ) : Container(),
+                      Align(
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            width: 230,
+                            child: ListTile(
+                              title: Text(
+                                _country.isEmpty ? "My Country" : _country,
+                                style: const TextStyle(color: kTextColor),
+                              ),
+                              leading: Radio(
+                                value: SingingCharacter.country,
+                                groupValue: _radioValue,
+                                onChanged: (SingingCharacter? value) {
+                                  setState(() {
+                                    _radioValue = value!;
+                                  });
+                                },
+                              ),
+                            ),
+                          )
+                      ),
+                      Align(
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            width: 230,
+                            child: ListTile(
+                                title: const Text(
+                                  'Everywhere',
+                                  style: TextStyle(color: kTextColor),
+                                ),
+                                leading: Radio(
+                                  value: SingingCharacter.everywhere,
+                                  groupValue: _radioValue,
+                                  onChanged: (SingingCharacter? value) {
+                                    setState(() {
+                                      _radioValue = value!;
+                                    });
+                                  },
+                                ),
+                                trailing: const Icon(
+                                    CupertinoIcons.globe, color: kTextColor)
+                            ),
+                          )
                       ),
                     ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10, left: 10),
-                    child: Column(
-                      children: [
-                        buildAge(),
-                        _titleContainer("Location", size: 16),
-                        // _cityValue.isNotEmpty? Align(
-                        //   alignment: Alignment.centerLeft,
-                        //   child: SizedBox(
-                        //     width: 230,
-                        //     child: ListTile(
-                        //       title: Text(
-                        //         _cityValue,
-                        //         style: const TextStyle(color: kTextColor),
-                        //       ),
-                        //       leading: Radio(
-                        //         value: SingingCharacter.city,
-                        //         groupValue: _radioValue,
-                        //         onChanged: (SingingCharacter? value) {
-                        //           setState(() { _radioValue = value!;});
-                        //         },
-                        //       ),
-                        //     ),
-                        //   ),
-                        // ) : Container(),
-                        Align(
-                            alignment: Alignment.centerLeft,
-                            child: SizedBox(
-                              width: 230,
-                              child: ListTile(
-                                title: Text(
-                                  _country.isEmpty ? "My Country" : _country,
-                                  style: const TextStyle(color: kTextColor),
-                                ),
-                                leading: Radio(
-                                  value: SingingCharacter.country,
-                                  groupValue: _radioValue,
-                                  onChanged: (SingingCharacter? value) {
-                                    setState(() { _radioValue = value!; });
-                                  },
-                                ),
-                              ),
-                            )
-                        ),
-                        Align(
-                            alignment: Alignment.centerLeft,
-                            child: SizedBox(
-                              width: 230,
-                              child: ListTile(
-                                  title: const Text(
-                                    'Everywhere',
-                                    style: TextStyle(color: kTextColor),
-                                  ),
-                                  leading: Radio(
-                                    value: SingingCharacter.everywhere,
-                                    groupValue: _radioValue,
-                                    onChanged: (SingingCharacter? value) {
-                                      setState(() { _radioValue = value!; });
-                                    },
-                                  ),
-                                  trailing: const Icon(CupertinoIcons.globe, color: kTextColor)
-                              ),
-                            )
-                        ),
-                      ],
-                    ),
-                  )
-                ],
-              ),
+                )
+              ],
             ),
           ),
         ),
-      );
+      ),
+    );
   }
 
   // Future<bool> _onBackPressed() {
@@ -308,11 +392,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   //   return null;
   // }
 
-  Widget buildTextBox(String name, TextInputType type, {String value = "", double? width}) {
+  Widget buildTextBox(String name, TextInputType type,
+      {String value = "", double? width}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        type == TextInputType.name?
+        type == TextInputType.name ?
         _titleContainer(name, size: 16) : Container(),
         const SizedBox(height: 10),
         Container(
@@ -320,29 +405,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
           height: 60,
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
-            color: const Color(0xffebefff),
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: const [BoxShadow(
-              color: Colors.black26,
-              offset: Offset(0, 2),
-            )]
+              color: const Color(0xffebefff),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: const [BoxShadow(
+                color: Colors.black26,
+                offset: Offset(0, 2),
+              )
+              ]
           ),
           child: TextFormField(
-            initialValue: value,
-            keyboardType: type,
-            style: const TextStyle(color: Colors.black),
-            decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.only(left: 20),
-              hintText: name,
-              hintStyle: const TextStyle(color: Colors.black38)
-            ),
-            onChanged: (value) {
-              if (type == TextInputType.name) _name = value;
-              if (type == TextInputType.text) _country = value;
-            },
-            autocorrect: false,
-            validator: (value) => Validator.validateText(text: value, name: name)
+              initialValue: value,
+              keyboardType: type,
+              style: const TextStyle(color: Colors.black),
+              decoration: InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.only(left: 20),
+                  hintText: name,
+                  hintStyle: const TextStyle(color: Colors.black38)
+              ),
+              onChanged: (value) {
+                if (type == TextInputType.name) _name = value;
+                if (type == TextInputType.text) _country = value;
+              },
+              autocorrect: false,
+              validator: (value) =>
+                  Validator.validateText(text: value, name: name)
           ),
         ),
         const SizedBox(height: 10)
@@ -366,7 +453,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               boxShadow: const [BoxShadow(
                 color: Colors.black26,
                 offset: Offset(0, 2),
-              )]
+              )
+              ]
           ),
           child: ElevatedButton(
             style: ButtonStyle(
@@ -385,11 +473,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // ),
                 const Spacer(),
                 Text(
-                  _birthDate.isNotEmpty? _birthDate : value,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: getDateColor()
-                  )
+                    _birthDate.isNotEmpty ? _birthDate : value,
+                    style: TextStyle(
+                        fontSize: 16,
+                        color: getDateColor()
+                    )
                 ),
                 const Spacer(),
                 IconButton(
@@ -411,17 +499,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-Color getDateColor() {
-  if (_birthDate.isNotEmpty) {
-    return Colors.black;
-  } else if (_dateReqMsg) {
-    return Colors.red;
-  } else {
-    return Colors.grey;
+  Color getDateColor() {
+    if (_birthDate.isNotEmpty) {
+      return Colors.black;
+    } else if (_dateReqMsg) {
+      return Colors.red;
+    } else {
+      return Colors.grey;
+    }
   }
-}
 
-  Widget buildInterestsBox(String name, TextInputType type, {String value = "", double? width}) {
+  Widget buildInterestsBox(String name, TextInputType type,
+      {String value = "", double? width}) {
     _msgController.text = value;
 
     return Column(
@@ -438,7 +527,8 @@ Color getDateColor() {
               boxShadow: const [BoxShadow(
                 color: Colors.black26,
                 offset: Offset(0, 2),
-              )]
+              )
+              ]
           ),
           child: TextFormField(
             controller: _msgController,
@@ -453,25 +543,25 @@ Color getDateColor() {
             keyboardType: type,
             style: const TextStyle(color: Colors.black),
             decoration: InputDecoration(
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.only(top: 14, left: 20),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.add_circle_rounded),
-                // color: Colors.black,
-                iconSize: 30,
-                tooltip: 'Add Interest',
-                splashColor: kTextColor,
-                onPressed: () {
-                  if (_newInterest.isNotEmpty) {
-                    _interests.add(_newInterest.trim());
-                    // _msgController.clear();
-                    _newInterest = "";
-                    setState(() {});
-                  }
-                },
-              ),
-              hintText: name,
-              hintStyle: const TextStyle(color: Colors.black38)
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.only(top: 14, left: 20),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.add_circle_rounded),
+                  // color: Colors.black,
+                  iconSize: 30,
+                  tooltip: 'Add Interest',
+                  splashColor: kTextColor,
+                  onPressed: () {
+                    if (_newInterest.isNotEmpty) {
+                      _interests.add(_newInterest.trim());
+                      // _msgController.clear();
+                      _newInterest = "";
+                      setState(() {});
+                    }
+                  },
+                ),
+                hintText: name,
+                hintStyle: const TextStyle(color: Colors.black38)
             ),
             onChanged: (value) {
               _newInterest = value;
@@ -502,22 +592,23 @@ Color getDateColor() {
                     boxShadow: const [BoxShadow(
                       color: Colors.black26,
                       offset: Offset(0, 2),
-                    )]
+                    )
+                    ]
                 ),
                 child: TextFormField(
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.black),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.only(left: 15),
-                    hintText: 'Min',
-                    hintStyle: TextStyle(color: Colors.black38)
-                  ),
-                  onChanged: (value) {
-                    _minAge = value;
-                  },
-                  autocorrect: false,
-                  validator: (value) => Validator.validateAge(age: value)
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(color: Colors.black),
+                    decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.only(left: 15),
+                        hintText: 'Min',
+                        hintStyle: TextStyle(color: Colors.black38)
+                    ),
+                    onChanged: (value) {
+                      _minAge = value;
+                    },
+                    autocorrect: false,
+                    validator: (value) => Validator.validateAge(age: value)
                 ),
               ),
               Container(
@@ -525,7 +616,8 @@ Color getDateColor() {
                 alignment: Alignment.center,
                 child: const Text(
                   "—",
-                  style: TextStyle(color: kTextColor, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: kTextColor, fontWeight: FontWeight.bold),
                 ),
               ),
               Container(
@@ -538,7 +630,8 @@ Color getDateColor() {
                       boxShadow: const [BoxShadow(
                         color: Colors.black26,
                         offset: Offset(0, 2),
-                      )]
+                      )
+                      ]
                   ),
                   child: TextFormField(
                       keyboardType: TextInputType.number,
@@ -553,7 +646,8 @@ Color getDateColor() {
                         _maxAge = value;
                       },
                       autocorrect: false,
-                      validator: (value) => Validator.validateAge(age: value, minAge: _minAge)
+                      validator: (value) =>
+                          Validator.validateAge(age: value, minAge: _minAge)
                   )
               )
             ]
@@ -565,19 +659,18 @@ Color getDateColor() {
 
   void openCalendar() async {
     var date = DateTime.now();
-    date = DateTime(date.year-18, date.month, date.day);
+    date = DateTime(date.year - 18, date.month, date.day);
     final DateTime? d = await showDatePicker(
       context: context,
       initialDate: date,
-      firstDate: DateTime(date.year-150, date.month, date.day),
+      firstDate: DateTime(date.year - 150, date.month, date.day),
       lastDate: date,
     );
     _birthDate = DateFormat("dd/MM/yyyy").format(d!);
     setState(() {});
   }
 
-  List<Widget> getInterestsWidgets()
-  {
+  List<Widget> getInterestsWidgets() {
     _interestsWidgets.clear();
     _interests.forEach((e) {
       _interestsWidgets.add(_interestsChip(e));
@@ -589,24 +682,101 @@ Color getDateColor() {
   Widget _interestsChip(String chipName) {
     return InputChip(
       label: Text(chipName),
-      labelStyle: const TextStyle(color: Colors.black, fontSize: 14.0, fontWeight: FontWeight.bold),
-      onDeleted: (){
-        setState(() {_interests.remove(chipName);});
+      labelStyle: const TextStyle(
+          color: Colors.black, fontSize: 14.0, fontWeight: FontWeight.bold),
+      onDeleted: () {
+        setState(() {
+          _interests.remove(chipName);
+        });
       },
     );
   }
-}
 
-Widget _titleContainer(String myTitle, {double leftPadding = 0, double size = 24}) {
-  return Align(
-    alignment: Alignment.centerLeft,
-    child: Padding(
-      padding: EdgeInsets.fromLTRB(leftPadding, 15, 5, 5),
-      child: Text(
-        myTitle,
-        style: TextStyle(
-            color: kTextColor, fontSize: size, fontWeight: FontWeight.bold),
+  Widget _titleContainer(String myTitle,
+      {double leftPadding = 0, double size = 24}) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(leftPadding, 15, 5, 5),
+        child: Text(
+          myTitle,
+          style: TextStyle(
+              color: kTextColor, fontSize: size, fontWeight: FontWeight.bold),
+        ),
       ),
-    ),
-  );
+    );
+  }
+
+  Future<void> _onImageButtonPressed(ImageSource source, {BuildContext? context}) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(source: source);
+      setState(() {
+        _image = pickedFile;
+      });
+    } catch (e) {
+      if (kDebugMode) print("Image Error: $e");
+      setState(() {
+        _pickImageError = e;
+      });
+    }
+  }
+
+  Widget _previewImage() {
+    final Text? retrieveError = _getRetrieveErrorWidget();
+    if (retrieveError != null) {
+      return retrieveError;
+    }
+
+    if (_image != null) {
+      return Image.file(File(_image!.path));
+    } else if (_pickImageError != null) {
+      return Text(
+        'Pick image error: $_pickImageError',
+        textAlign: TextAlign.center,
+      );
+    } else {
+      return Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage("assets/images/blank_profile.png"),
+          )
+        ),
+      );
+    }
+  }
+
+  Future<void> retrieveLostData() async {
+    final LostDataResponse response = await _picker.retrieveLostData();
+    if (response.isEmpty) {
+      return;
+    }
+    if (response.file != null) {
+      setState(() {
+        _image = response.file;
+      });
+    } else {
+      _retrieveDataError = response.exception!.code;
+    }
+  }
+
+  Text? _getRetrieveErrorWidget() {
+    if (_retrieveDataError != null) {
+      final Text result = Text(_retrieveDataError!);
+      _retrieveDataError = null;
+      return result;
+    }
+    return null;
+  }
+
+  Future<void> _uploadFile(XFile image) async {
+    await FirebaseStorage.instance.ref()
+      .child('profile_images/${image.path}')
+      .putFile(File(image.path))
+      .then((p0) => print('File Uploaded'));
+
+    await FirebaseStorage.instance.ref()
+        .child('profile_images/${image.path}')
+        .getDownloadURL()
+        .then((fileURL) => _imageURL = fileURL);
+  }
 }

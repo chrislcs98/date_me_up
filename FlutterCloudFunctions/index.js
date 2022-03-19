@@ -5,21 +5,11 @@ admin.initializeApp(functions.config().functions);
 
 let newMatch;
 let user;
-const payload = {
-  notification: {
-    title: "It's a Match",
-    body: " liked you",
-    sound: "default",
-  },
-  data: {
-    click_action: "FLUTTER_NOTIFICATION_CLICK",
-  },
-};
-
 
 exports.triggerOnCreate = functions.firestore.document("matches/{id}")
     .onCreate(async (snapshot, context) => {
       sendNotification(snapshot);
+      console.log("On Create!");
     });
 
 exports.triggerOnUpdate = functions.firestore.document("matches/{id}")
@@ -38,29 +28,65 @@ function sendNotification(snapshot) {
   }
 
   newMatch = snapshot.data();
+  let uid1;
+  let uid2;
+  const payload = {
+    notification: {
+      title: "It's a Match",
+      body: " liked you",
+      sound: "default",
+    },
+    data: {
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+    },
+  };
 
-  if (newMatch.twoWays) {
-    user = admin.firestore().collection("users")
-        .doc(newMatch.senderUId).get();
-
-    payload["notification"]["body"] = user.name +
-        payload["notification"]["body"] + "back!";
+  if (newMatch["twoWays"]) {
+    uid1 = newMatch["senderUId"];
+    uid2 = newMatch["receiverUId"];
   } else {
-    user = admin.firestore().collection("users")
-        .doc(newMatch.receiverUId).get();
-
-    payload["notification"]["title"] = "Match";
-    payload["notification"]["body"] = user.name +
-        payload["notification"]["body"] + "!";
+    uid1 = newMatch["receiverUId"];
+    uid2 = newMatch["senderUId"];
   }
 
+  console.log("Two-way Match: " + newMatch["twoWays"]);
 
-  try {
-    admin.messaging().sendToDevice(user.deviceToken, payload);
-    console.log("Notification sent successfully!");
-  } catch (err) {
-    console.log(err);
-  }
+  admin.firestore().collection("users").doc(uid2)
+      .get()
+      .then((snapshot) => {
+        user = snapshot["_fieldsProto"];
+
+        console.log("User Name: " + user["name"]["stringValue"]);
+
+        if (newMatch["twoWays"]) {
+          payload["notification"]["body"] = user["name"]["stringValue"] +
+              payload["notification"]["body"] + " back!";
+        } else {
+          payload["notification"]["title"] = "Match";
+          payload["notification"]["body"] = user["name"]["stringValue"] +
+              payload["notification"]["body"] + "!";
+        }
+
+        admin.firestore().collection("users").doc(uid1)
+            .get()
+            .then((snapshot) => {
+              user = snapshot["_fieldsProto"];
+
+              console.log("User device-token: " +
+                  user["deviceToken"]["stringValue"]);
+              try {
+                if (user["deviceToken"]["stringValue"]) {
+                  admin.messaging().sendToDevice(
+                      user["deviceToken"]["stringValue"], payload);
+                  console.log("Notification sent successfully!");
+                } else {
+                  console.log("Device token is empty!");
+                }
+              } catch (err) {
+                console.log("Error: " + err);
+              }
+            });
+      });
 }
 
 // // Create and Deploy Your First Cloud Functions

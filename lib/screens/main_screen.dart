@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:date_me_up/constants.dart';
@@ -46,7 +47,8 @@ class _MainScreenState extends State<MainScreen> {
         age: calculateAge(data['birthDate'].toDate()),
         agePrefs: data['agePrefs'],
         locationPrefs: data['locationPrefs'],
-        interests: data['interests']
+        interests: data['interests'],
+        image: data['image']
       );
     }
     return null;
@@ -98,8 +100,8 @@ class _MainScreenState extends State<MainScreen> {
       .get()
       .then((querySnapshot) => {
         querySnapshot.docs.forEach((doc) {
-          // print(doc.data()["name"]);
-          // print(doc.data());
+          // if (kDebugMode) print(doc.data()["name"]);
+          // if (kDebugMode) print(doc.data());
 
           tmpUser = assignUserData(doc.id, doc.data());
           if (tmpUser != null) {
@@ -177,7 +179,7 @@ class _MainScreenState extends State<MainScreen> {
       await FirebaseFirestore.instance.collection('matches')
         .add(data)
         .then((value) {
-          if (kDebugMode) print("User Added!");
+          if (kDebugMode) print("Match Added!");
           _MatchedUsers.add(_Users[_idx]);
           _midx = _MatchedUsers.length - 1;
           _Users.removeAt(_idx);
@@ -198,7 +200,7 @@ class _MainScreenState extends State<MainScreen> {
       await FirebaseFirestore.instance.collection('matches').doc(_Matches[idx]['id'])
         .delete()
         .then((v) {
-          if (kDebugMode) print("Delete Match!");
+          if (kDebugMode) print("Match Deleted!");
           _Users.add(_MatchedUsers[_midx]);
           _MatchedUsers.removeAt(_midx);
           if (_MatchedUsers.length == _midx) _midx = 0;
@@ -280,6 +282,7 @@ class _MainScreenState extends State<MainScreen> {
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedTab,
         onTap: _onItemTapped,
+        unselectedItemColor: Colors.grey,
         items: [
           const BottomNavigationBarItem(
               icon: Icon(Icons.people_alt_rounded, size: 30), label: "Home"),
@@ -308,7 +311,6 @@ class _MainScreenState extends State<MainScreen> {
                     icon: Icons.refresh,
                     color: Colors.white,
                     onPress: () {
-                      if (kDebugMode) print("Refresh");
                       setState(() {
                         _endListUsers = false;
                       });
@@ -320,28 +322,32 @@ class _MainScreenState extends State<MainScreen> {
             : Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
-                image: const DecorationImage(
-                  image: AssetImage("assets/images/mercedes.jpeg"),
+                image: DecorationImage(
+                  image: _getImage(user),
                   fit: BoxFit.cover
                 )
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
-                child: Column(
-                  mainAxisAlignment: _selectedTab == 1 ? MainAxisAlignment.start : MainAxisAlignment.end,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _selectedTab == 0 ? Container()
-                    : Center(
-                      child: Chip(
-                        backgroundColor: kSecondaryColor.withOpacity(0.8),
-                        elevation: 3,
-                        label: const Text("  It's a match!  "),
-                        labelStyle: GoogleFonts.lobster(fontSize: 26, color: kTextColor)
-                      )
+              child: Column(
+                mainAxisAlignment: _selectedTab == 1 ? MainAxisAlignment.start : MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _selectedTab == 0 ? Container()
+                  : Center(
+                    child: Chip(
+                      backgroundColor: kSecondaryColor.withOpacity(0.8),
+                      elevation: 3,
+                      label: const Text("  It's a match!  "),
+                      labelStyle: GoogleFonts.lobster(fontSize: 26, color: kTextColor)
+                    )
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.grey.withOpacity(0.5),
                     ),
-                    const Spacer(),
-                    Column(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -399,7 +405,6 @@ class _MainScreenState extends State<MainScreen> {
                               icon: Icons.refresh,
                               color: Colors.white,
                               onPress: () {
-                                print("Refresh");
                                 if (_selectedTab == 0) {
                                   _idx++;
                                   if (_Users.length == _idx) {
@@ -427,9 +432,10 @@ class _MainScreenState extends State<MainScreen> {
                         )
                       ],
                     ),
-                  ],
-                )
+                  ),
+                ],
               ),
+
             ),
         ),
       )
@@ -465,6 +471,14 @@ class _MainScreenState extends State<MainScreen> {
       label: Text(chipName),
       labelStyle: TextStyle(color: kTextColor, fontSize: fontSize, fontWeight: fontWeight, fontFamily: fontFam),
     );
+  }
+
+  ImageProvider<Object> _getImage(UserData user) {
+    if (user.image != null) {
+      return NetworkImage(user.image!);
+    } else {
+      return const AssetImage("assets/images/blank_profile.png");
+    }
   }
 }
 

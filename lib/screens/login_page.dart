@@ -89,8 +89,6 @@ class _LoginPageState extends State<LoginPage> {
       if (kDebugMode) print("User: $userCredential");
 
       _user = userCredential.user;
-
-      checkIfDocExists(_user!.uid);
       await _user?.reload();
 
     } on FirebaseAuthException catch (e) {
