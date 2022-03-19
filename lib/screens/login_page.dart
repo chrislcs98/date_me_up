@@ -3,7 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:date_me_up/main.dart';
 import '../validator.dart';
 
 class LoginPage extends StatefulWidget {
